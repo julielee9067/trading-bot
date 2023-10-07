@@ -3,11 +3,10 @@ import datetime
 from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Any, Dict
+from typing import List, Any
 import matplotlib.pyplot as plt
 
 from backtest.constants import MIN_YEAR
-from backtest.main import backtest
 from logger import logger
 
 
@@ -75,17 +74,3 @@ def get_moving_average(window_size: int, data_list: List[Data], index: int) -> f
         total += data.close
 
     return total / window_size
-
-
-def get_optimal_window_sizes(data_list: List[Data]) -> List[Dict]:
-    ma_budget_list = []
-    for i in range(1, 60):
-        for j in range(1, i):
-            date_list, budget_list = backtest(data_list, i, j)
-            final_budget = budget_list[-1]
-            ma_budget_list.append(
-                {"short_window_size": j, "long_window_size": i, "budget": final_budget}
-            )
-
-    ma_budget_list.sort(key=lambda x: x["budget"])
-    return ma_budget_list

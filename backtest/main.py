@@ -1,10 +1,10 @@
 from datetime import date
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import matplotlib
 
-from backtest.constants import BUDGET, START_DATE, END_DATE
+from backtest.constants import BUDGET, START_DATE, END_DATE, ShortWindowSize, LongWindowSize
 from backtest.utils import (
     load_data_from_csv,
     Data,
@@ -54,7 +54,7 @@ def backtest(
             continue
 
         if should_sell(is_holding, stop_loss_price, data.low):
-            sell_price = min(data.open, stop_loss_price)
+            sell_price = min(data.open, stop_loss_price) * 0.995
             budget *= (sell_price - buy_price) / buy_price + 1
             is_holding = False
             margin_rate = ((sell_price - buy_price) / buy_price) * 100
@@ -91,17 +91,35 @@ def get_res_by_file_name(file_name: str, short, long) -> Tuple[List[date], List[
     return date_list, budget_list
 
 
-if __name__ == "__main__":
-    first_file_name = "FNGU.csv"
-    second_file_name = "NRGU.csv"
+def get_optimal_window_sizes(data_list: List[Data]) -> List[Dict]:
+    ma_budget_list = []
+    for i in range(1, 60):
+        for j in range(1, i):
+            date_list, budget_list = backtest(data_list, i, j)
+            final_budget = budget_list[-1]
+            ma_budget_list.append(
+                {"short_window_size": j, "long_window_size": i, "budget": final_budget}
+            )
 
-    first_date_list, first_budget_list = get_res_by_file_name(first_file_name, 3, 16)
-    second_date_list, second_budget_list = get_res_by_file_name(second_file_name, 3, 30)
+    ma_budget_list.sort(key=lambda x: x["budget"])
+    return ma_budget_list
+
+
+if __name__ == "__main__":
+    FNGU = "FNGU.csv"
+    NGRU = "NRGU.csv"
+
+    date_list, FNGU_budget_list = get_res_by_file_name(
+        FNGU, ShortWindowSize.FNGU.value, LongWindowSize.FNGU.value
+    )
+    _, NGRU_budget_list = get_res_by_file_name(
+        NGRU, ShortWindowSize.NRGU.value, LongWindowSize.NRGU.value
+    )
 
     res_budget_list = [
-        (first + second) for first, second in zip(first_budget_list, second_budget_list)
+        (first + second) for first, second in zip(FNGU_budget_list, NGRU_budget_list)
     ]
-    log_annual_returns_summary(first_date_list, res_budget_list)
-    plot_graph(first_date_list, res_budget_list, Path("SUM").stem)
+    log_annual_returns_summary(date_list, res_budget_list)
+    plot_graph(date_list, res_budget_list, Path("SUM").stem)
 
     # get_optimal_window_sizes(data_list)
