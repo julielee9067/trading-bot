@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 from typing import List, Tuple
 
@@ -11,7 +11,7 @@ from logger import logger
 matplotlib.use("TkAgg")
 
 
-def should_pass(curr_date: datetime, start_date: datetime) -> bool:
+def should_pass(curr_date: date, start_date: date) -> bool:
     return curr_date < start_date
 
 
@@ -24,8 +24,8 @@ def should_buy(is_holding: bool, close: float, open: float) -> bool:
 
 
 def backtest(
-    data_list: List[Data], budget: float = BUDGET, start_date: datetime = START_DATE
-) -> Tuple[List[datetime], List[float]]:
+    data_list: List[Data], budget: float = BUDGET, start_date: date = START_DATE
+) -> Tuple[List[date], List[float]]:
     buy_price = 0.0
     stop_loss_price = 0.0
     is_holding = False
@@ -49,7 +49,7 @@ def backtest(
         elif should_buy(is_holding, data.close, data.open):
             buy_price = data.close
             is_holding = True
-            logger.info(f"DATE: {data.date} | ACTION: Bought | BUY PRICE: ${buy_price:.2f}")
+            logger.warning(f"DATE: {data.date} | ACTION: Bought | BUY PRICE: ${buy_price:.2f}")
 
         stop_loss_price = data.close
         budget_list.append(budget)

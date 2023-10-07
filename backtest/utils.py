@@ -1,5 +1,6 @@
 import csv
 import datetime
+from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Any
@@ -11,7 +12,7 @@ from logger import logger
 
 @dataclass
 class Data:
-    date: datetime.datetime
+    date: date
     open: float
     high: float
     low: float
@@ -25,7 +26,7 @@ def load_data_from_csv(file_name: str) -> List[Data]:
         reader = csv.DictReader(f)
         for row in reader:
             data = Data(
-                date=datetime.datetime.strptime(row["Date"], "%Y-%m-%d"),
+                date=datetime.datetime.strptime(row["Date"], "%Y-%m-%d").date(),
                 open=round(float(row["Open"]), 2),
                 high=round(float(row["High"]), 2),
                 low=round(float(row["Low"]), 2),
@@ -46,16 +47,16 @@ def plot_graph(x_values: List[Any], y_values: List[Any], file_name: str):
 
 
 def log_annual_returns_summary(
-    date_list: List[datetime.datetime], budget_list: List[float], min_year: int = MIN_YEAR
+    date_list: List[date], budget_list: List[float], min_year: int = MIN_YEAR
 ):
     current_budget = 1.0
     current_year = min_year
 
-    for i, (date, budget) in enumerate(zip(date_list, budget_list)):
-        if current_year < date.year or i == len(date_list) - 1:
+    for i, (data_date, budget) in enumerate(zip(date_list, budget_list)):
+        if current_year < data_date.year or i == len(date_list) - 1:
             annual_return = (
                 (budget - current_budget) / current_budget * 100 if current_year != min_year else 0
             )
-            logger.debug(f"{date.date()}: ${round(budget, 2)}, Annual Return: {annual_return:.2f}%")
-            current_year = date.year
+            logger.debug(f"{data_date}: ${round(budget, 2)}, Annual Return: {annual_return:.2f}%")
+            current_year = data_date.year
             current_budget = budget
