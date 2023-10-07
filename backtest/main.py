@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import List, Tuple
 
 import matplotlib
@@ -8,6 +9,18 @@ from backtest.utils import load_data_from_csv, Data, plot_graph, log_annual_retu
 from logger import logger
 
 matplotlib.use("TkAgg")
+
+
+def should_pass(curr_date: datetime, start_date: datetime) -> bool:
+    return curr_date < start_date
+
+
+def should_sell(is_holding: bool, stop_loss_price: float, low: float) -> bool:
+    return is_holding and stop_loss_price > low
+
+
+def should_buy(is_holding: bool, close: float, open: float) -> bool:
+    return not is_holding and close > open
 
 
 def backtest(
@@ -20,35 +33,40 @@ def backtest(
     date_list = []
 
     for data in data_list:
-        if data.date < start_date:
+        if should_pass(data.date, start_date):
             continue
 
-        if is_holding and stop_loss_price > data.low:
+        if should_sell(is_holding, stop_loss_price, data.low):
             sell_price = min(data.open, stop_loss_price)
             budget *= (sell_price - buy_price) / buy_price + 1
             is_holding = False
-            logger.info(
-                f"Sold: ${sell_price} | Bought: ${buy_price} | "
-                f"Margin rate: {((sell_price - buy_price) / buy_price) * 100}%"
+            margin_rate = ((sell_price - buy_price) / buy_price) * 100
+            logger.warning(
+                f"DATE: {data.date} | ACTION: Sold | SELL PRICE: ${sell_price:.2f} | "
+                f"BUY PRICE: ${buy_price:.2f} | MARGIN RATE: {margin_rate:.2f}%"
             )
 
-        if not is_holding and data.close > data.open:
+        elif should_buy(is_holding, data.close, data.open):
             buy_price = data.close
             is_holding = True
-            logger.info(f"Bought at: {buy_price}")
+            logger.info(f"DATE: {data.date} | ACTION: Bought | BUY PRICE: ${buy_price:.2f}")
 
         stop_loss_price = data.close
         budget_list.append(budget)
         date_list.append(data.date)
-        logger.info(f"{data.date}: budget={budget}, close_price={data.close}\n")
+        logger.info(
+            f"DATE: {data.date} | CURRENT BUDGET: ${budget:.2f} | CLOSING PRICE: ${data.close}\n"
+        )
 
     return date_list, budget_list
 
 
 if __name__ == "__main__":
-    file_name = "backtest/data/BNKU -> X.csv"
-    data_list = load_data_from_csv(file_name)
+    file_name = "BNKU -> X.csv"
+
+    path = Path("backtest/data", file_name)
+    data_list = load_data_from_csv(str(path))
 
     date_list, budget_list = backtest(data_list)
     log_annual_returns_summary(date_list, budget_list)
-    plot_graph(date_list, budget_list)
+    plot_graph(date_list, budget_list, path.stem)

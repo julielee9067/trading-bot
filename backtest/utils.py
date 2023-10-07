@@ -1,6 +1,7 @@
 import csv
 import datetime
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Any
 import matplotlib.pyplot as plt
 
@@ -35,9 +36,13 @@ def load_data_from_csv(file_name: str) -> List[Data]:
     return data_list
 
 
-def plot_graph(x_values: List[Any], y_values: List[Any]):
+def plot_graph(x_values: List[Any], y_values: List[Any], file_name: str):
     plt.plot(x_values, y_values)
-    plt.show()
+    plt.title(file_name)
+    plt.xlabel("Time")
+    plt.ylabel("Budget [$]")
+    plt.savefig(Path("backtest/results", f"{file_name}.png"))
+    # plt.show()
 
 
 def log_annual_returns_summary(
