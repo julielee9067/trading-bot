@@ -54,7 +54,7 @@ def backtest(
             continue
 
         if should_sell(is_holding, stop_loss_price, data.low):
-            sell_price = min(data.open, stop_loss_price) * 0.995
+            sell_price = min(data.open, stop_loss_price) * 0.998
             budget *= (sell_price - buy_price) / buy_price + 1
             is_holding = False
             margin_rate = ((sell_price - buy_price) / buy_price) * 100
@@ -91,35 +91,30 @@ def get_res_by_file_name(file_name: str, short, long) -> Tuple[List[date], List[
     return date_list, budget_list
 
 
-def get_optimal_window_sizes(data_list: List[Data]) -> List[Dict]:
+def get_optimal_window_sizes_by_file_name(file_name: str) -> List[Dict]:
+    path = Path("backtest/data", file_name)
+    data_list = load_data_from_csv(str(path))
+
     ma_budget_list = []
     for i in range(1, 60):
         for j in range(1, i):
-            date_list, budget_list = backtest(data_list, i, j)
+            date_list, budget_list = backtest(data_list, j, i)
             final_budget = budget_list[-1]
             ma_budget_list.append(
                 {"short_window_size": j, "long_window_size": i, "budget": final_budget}
             )
 
     ma_budget_list.sort(key=lambda x: x["budget"])
+
     return ma_budget_list
 
 
 if __name__ == "__main__":
-    FNGU = "FNGU.csv"
     NGRU = "NRGU.csv"
 
-    date_list, FNGU_budget_list = get_res_by_file_name(
-        FNGU, ShortWindowSize.FNGU.value, LongWindowSize.FNGU.value
-    )
-    _, NGRU_budget_list = get_res_by_file_name(
+    date_list, NGRU_budget_list = get_res_by_file_name(
         NGRU, ShortWindowSize.NRGU.value, LongWindowSize.NRGU.value
     )
 
-    res_budget_list = [
-        (first + second) for first, second in zip(FNGU_budget_list, NGRU_budget_list)
-    ]
-    log_annual_returns_summary(date_list, res_budget_list)
-    plot_graph(date_list, res_budget_list, Path("SUM").stem)
-
-    # get_optimal_window_sizes(data_list)
+    log_annual_returns_summary(date_list, NGRU_budget_list)
+    plot_graph(date_list, NGRU_budget_list, Path("SUM").stem)
