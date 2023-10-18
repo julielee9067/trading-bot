@@ -54,7 +54,7 @@ def backtest(
             continue
 
         if should_sell(is_holding, stop_loss_price, data.low):
-            sell_price = min(data.open, stop_loss_price) * 0.998
+            sell_price = min(data.open, stop_loss_price)
             budget *= (sell_price - buy_price) / buy_price + 1
             is_holding = False
             margin_rate = ((sell_price - buy_price) / buy_price) * 100
@@ -110,10 +110,10 @@ def get_optimal_window_sizes_by_file_name(file_name: str) -> List[Dict]:
 
 
 if __name__ == "__main__":
-    NGRU = "NRGU.csv"
+    NGRU = "FNGU.csv"
 
     date_list, NGRU_budget_list = get_res_by_file_name(
-        NGRU, ShortWindowSize.NRGU.value, LongWindowSize.NRGU.value
+        NGRU, ShortWindowSize.FNGU.value, LongWindowSize.FNGU.value
     )
 
     log_annual_returns_summary(date_list, NGRU_budget_list)
