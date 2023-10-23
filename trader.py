@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from typing import List
 
 import pytz  # type: ignore
+import yfinance
 from alpaca.data import (
     StockHistoricalDataClient,
-    StockLatestQuoteRequest,
     TimeFrame,
     StockBarsRequest,
 )
@@ -34,10 +34,9 @@ class TradingBot:
         self.stock_history_client = StockHistoricalDataClient(api_key, secret_key)
         self.trading_client = TradingClient(api_key, secret_key, paper=False)
 
-    def get_latest_quote(self, symbol: str) -> float:
-        request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
-        a = self.stock_history_client.get_stock_latest_bar(request)
-        return a[symbol]
+    def is_market_open(self) -> bool:
+        clock = self.trading_client.get_clock()
+        return clock.is_open
 
     def get_account(self) -> TradeAccount:
         account = self.trading_client.get_account()
@@ -50,23 +49,21 @@ class TradingBot:
 
     @staticmethod
     def get_today_open_price(symbol: str) -> float:
-        bar = bot.stock_history_client.get_stock_bars(
-            StockBarsRequest(
-                symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Minute,
-                start=(datetime.today() - timedelta(days=1))
-                .astimezone(est_timezone)
-                .replace(hour=9, minute=29),
-                end=(datetime.today() - timedelta(days=1))
-                .astimezone(est_timezone)
-                .replace(hour=9, minute=30),
-            )
-        )
-        return bar.data[symbol][0].open
+        ticker = yfinance.Ticker(symbol)
+        data = ticker.history(period="1d")
+        return round(data["Open"][0], 2)
 
-    # def get_current_price(self, symbol: str) -> float:
-    #     # TODO: FIX THIS
-    #     print(self.trading_client.get_open_position(symbol))
+    @staticmethod
+    def get_last_closed_price(symbol: str) -> float:
+        ticker = yfinance.Ticker(symbol)
+        data = ticker.history(period="5d")
+        return round(data["Close"][-2], 2)
+
+    @staticmethod
+    def get_current_price(symbol: str) -> float:
+        ticker = yfinance.Ticker(symbol)
+        data = ticker.history(period="1d")
+        return round(data["Close"][0], 2)
 
     def sell_stock(self, symbol: str, qty: int = 1) -> None:
         self.get_account()
@@ -79,15 +76,15 @@ class TradingBot:
         self.trading_client.submit_order(request)
         logger.info("Successfully submitted sell request")
 
-    def calculate_moving_average(self, window_size: int) -> float:
+    def calculate_moving_average(self, symbol: str, window_size: int) -> float:
         bars = self.stock_history_client.get_stock_bars(
             StockBarsRequest(
-                symbol_or_symbols="NRGU",
+                symbol_or_symbols=symbol,
                 timeframe=TimeFrame.Day,
                 start=datetime.today().astimezone(est_timezone) - timedelta(days=60),
                 end=datetime.today().astimezone(est_timezone) - timedelta(days=1),
             )
-        ).data["NRGU"]
+        ).data[symbol]
 
         total = 0.0
 
@@ -109,8 +106,12 @@ class TradingBot:
         logger.info(f"Successfully submitted buy request: {res}")
 
     def should_buy(self, symbol: str = "NRGU") -> bool:
-        short_ma = self.calculate_moving_average(window_size=ShortWindowSize.NRGU.value)
-        long_ma = self.calculate_moving_average(window_size=LongWindowSize.NRGU.value)
+        short_ma = self.calculate_moving_average(
+            window_size=ShortWindowSize.NRGU.value, symbol=symbol
+        )
+        long_ma = self.calculate_moving_average(
+            window_size=LongWindowSize.NRGU.value, symbol=symbol
+        )
         logger.info(f"short_ma: {short_ma} | long_ma: {long_ma}")
 
         open_price = self.get_today_open_price(symbol)
@@ -122,17 +123,20 @@ class TradingBot:
 if __name__ == "__main__":
     bot = TradingBot()
 
-    # print(datetime.today().astimezone(est_timezone).replace(hour=9, minute=30))
-    bars = bot.stock_history_client.get_stock_bars(
-        StockBarsRequest(
-            symbol_or_symbols="NRGU",
-            timeframe=TimeFrame.Minute,
-            start=(datetime.today() - timedelta(days=1))
-            .astimezone(est_timezone)
-            .replace(hour=9, minute=29),
-            end=(datetime.today() - timedelta(days=1))
-            .astimezone(est_timezone)
-            .replace(hour=9, minute=31),
-        )
-    )
-    print(bars.data["NRGU"])
+    print(bot.get_last_closed_price("NRGU"))
+
+"""
+전 날 close price (stop loss price)
+2분마다 가격 체크
+가격이 stop loss 보다 낮으면 market sell
+
+market 닫기 2분 전
+오늘 open 보다 지금 가격이 더 높으면 market buy
+
+1. 현재 주식 정확한 가격 체크  DONE
+2. 오늘 오픈가 체크  DONE
+3. 마켓 sell & buy order  DONE
+4. 어제 close price  DONE
+5. market status  DONE
+6. Schedule 작성 TODO
+"""
