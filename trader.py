@@ -32,7 +32,7 @@ est_timezone = pytz.timezone("US/Eastern")
 class TradingBot:
     def __init__(self):
         self.stock_history_client = StockHistoricalDataClient(api_key, secret_key)
-        self.trading_client = TradingClient(api_key, secret_key, paper=False)
+        self.trading_client = TradingClient(api_key, secret_key, paper=True)
 
     def is_market_open(self) -> bool:
         clock = self.trading_client.get_clock()
@@ -53,10 +53,12 @@ class TradingBot:
         data = ticker.history(period="1d")
         return round(data["Open"][0], 2)
 
+    # TODO: check when market is actually open
     @staticmethod
     def get_last_closed_price(symbol: str) -> float:
         ticker = yfinance.Ticker(symbol)
         data = ticker.history(period="5d")
+        print(data["Close"])
         return round(data["Close"][-2], 2)
 
     @staticmethod
@@ -65,7 +67,7 @@ class TradingBot:
         data = ticker.history(period="1d")
         return round(data["Close"][0], 2)
 
-    def sell_stock(self, symbol: str, qty: int = 1) -> None:
+    def sell_stock(self, symbol: str, qty: float = 1) -> None:
         self.get_account()
         request = MarketOrderRequest(
             symbol=symbol,
@@ -94,8 +96,16 @@ class TradingBot:
 
         return total / window_size
 
-    def buy_stock(self, symbol: str, qty: int = 1) -> None:
-        self.get_account()
+    def buy_stock(self, symbol: str) -> None:
+        balance = self.get_account().cash
+        if not balance:
+            logger.error(f"Not enough balance: {balance}")
+            return
+
+        curr_price = self.get_current_price(symbol)
+
+        # Buy as much as we can with left over cash in the account
+        qty = balance // curr_price  # type: ignore
         request = MarketOrderRequest(
             symbol=symbol,
             qty=qty,
@@ -103,7 +113,7 @@ class TradingBot:
             time_in_force=TimeInForce.GTC,
         )
         res = self.trading_client.submit_order(request)
-        logger.info(f"Successfully submitted buy request: {res}")
+        logger.info(f"Successfully submitted buy request: {res} | curr_price: {curr_price}")
 
     def should_buy(self, symbol: str = "NRGU") -> bool:
         short_ma = self.calculate_moving_average(
@@ -115,9 +125,10 @@ class TradingBot:
         logger.info(f"short_ma: {short_ma} | long_ma: {long_ma}")
 
         open_price = self.get_today_open_price(symbol)
-        logger.info(f"open_price: {open_price} | current_price: ")
+        curr_price = self.get_current_price(symbol)
+        logger.info(f"open_price: {open_price} | current_price: {curr_price}")
 
-        return short_ma >= long_ma and 0 > open_price
+        return short_ma >= long_ma and curr_price > open_price
 
 
 if __name__ == "__main__":
@@ -138,5 +149,7 @@ market 닫기 2분 전
 3. 마켓 sell & buy order  DONE
 4. 어제 close price  DONE
 5. market status  DONE
-6. Schedule 작성 TODO
+
+6. Schedule 작성  TODO
+7. alpaca vs yfinance 비교  TODO
 """
