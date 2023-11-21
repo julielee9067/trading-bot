@@ -1,3 +1,4 @@
+import time
 from typing import Optional, Tuple
 
 import schedule
@@ -24,7 +25,7 @@ class Main:
 
         position, qty = self.find_position(symbol)
         if not position:
-            logger.error(f"Can't sell {symbol} | qty: {qty}")
+            # logger.info(f"Position not found for {symbol} | qty: {qty}")
             return
 
         if self.should_sell(position):
@@ -55,12 +56,22 @@ class Main:
             logger.error(f"Cannot retrieve current price: {position.current_price}")
             return False
 
-        return last_closed_price > float(position.current_price)
+        return last_closed_price * 0.99 > float(position.current_price)
 
     def already_holding(self, symbol: str) -> bool:
         holding_stocks = {position.symbol for position in self.bot.get_positions()}
         return symbol in holding_stocks
 
     def main(self) -> None:
+        # TODO: Position 한번 체크후 가지고 있는게 없으면 다시 체크 안해도 되게 로직 변경
         schedule.every().day.at(MARKET_CLOSE_TIME).do(self.run_buy)
         schedule.every(10).seconds.until(MARKET_CLOSE_TIME).do(self.run_sell)
+
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+
+
+if __name__ == "__main__":
+    c = Main()
+    c.main()

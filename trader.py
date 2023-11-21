@@ -8,6 +8,7 @@ from alpaca.data import (
     StockHistoricalDataClient,
     TimeFrame,
     StockBarsRequest,
+    TimeFrameUnit,
 )
 from alpaca.trading import (
     TradingClient,
@@ -32,7 +33,7 @@ est_timezone = pytz.timezone("US/Eastern")
 class TradingBot:
     def __init__(self):
         self.stock_history_client = StockHistoricalDataClient(api_key, secret_key)
-        self.trading_client = TradingClient(api_key, secret_key, paper=True)
+        self.trading_client = TradingClient(api_key, secret_key, paper=False)
 
     def is_market_open(self) -> bool:
         clock = self.trading_client.get_clock()
@@ -58,14 +59,19 @@ class TradingBot:
     def get_last_closed_price(symbol: str) -> float:
         ticker = yfinance.Ticker(symbol)
         data = ticker.history(period="5d")
-        print(data["Close"])
         return round(data["Close"][-2], 2)
 
-    @staticmethod
-    def get_current_price(symbol: str) -> float:
-        ticker = yfinance.Ticker(symbol)
-        data = ticker.history(period="1d")
-        return round(data["Close"][0], 2)
+    def get_current_price(self, symbol: str) -> float:
+        # Using yfnance
+        # ticker = yfinance.Ticker(symbol)
+        # data = ticker.history(period="1d")
+        # return round(data["Close"][0], 2)
+
+        # Using alpacapy
+        request = StockBarsRequest(
+            symbol_or_symbols=symbol, timeframe=TimeFrame(amount=1, unit=TimeFrameUnit.Minute)
+        )
+        return self.stock_history_client.get_stock_bars(request).data[symbol][-1].close
 
     def sell_stock(self, symbol: str, qty: float = 1) -> None:
         self.get_account()
@@ -105,7 +111,7 @@ class TradingBot:
         curr_price = self.get_current_price(symbol)
 
         # Buy as much as we can with left over cash in the account
-        qty = balance // curr_price  # type: ignore
+        qty = float(balance) // float(curr_price)  # type: ignore
         request = MarketOrderRequest(
             symbol=symbol,
             qty=qty,
@@ -134,7 +140,7 @@ class TradingBot:
 if __name__ == "__main__":
     bot = TradingBot()
 
-    print(bot.get_last_closed_price("NRGU"))
+    print(bot.get_today_open_price("NRGU"))
 
 """
 전 날 close price (stop loss price)
