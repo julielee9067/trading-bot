@@ -45,7 +45,9 @@ class Main:
             logger.info(f"Buying stock: {symbol}")
             self.bot.buy_stock(symbol=symbol)
 
-    def find_position(self, symbol: str) -> Tuple[Optional[Position], Optional[float]]:
+    def find_position(
+        self, symbol: str = DEFAULT_SYMBOL
+    ) -> Tuple[Optional[Position], Optional[float]]:
         position = next((pos for pos in self.bot.get_positions() if pos.symbol == symbol), None)
         return (position, float(position.qty_available)) if position else (None, 0.0)
 
@@ -58,14 +60,24 @@ class Main:
 
         return last_closed_price * 0.99 > float(position.current_price)
 
-    def already_holding(self, symbol: str) -> bool:
+    def already_holding(self, symbol: str = DEFAULT_SYMBOL) -> bool:
         holding_stocks = {position.symbol for position in self.bot.get_positions()}
         return symbol in holding_stocks
 
-    def main(self) -> None:
-        # TODO: Position 한번 체크후 가지고 있는게 없으면 다시 체크 안해도 되게 로직 변경
-        schedule.every().day.at(MARKET_CLOSE_TIME).do(self.run_buy)
+    def setup_daily_tasks(self):
+        if not self.bot.is_market_open():
+            logger.info("Market closed today")
+            return
+
+        if not self.find_position(DEFAULT_SYMBOL)[0]:
+            logger.info(f"No position found for {DEFAULT_SYMBOL}, skipping sell setup")
+            return
+
         schedule.every(10).seconds.until(MARKET_CLOSE_TIME).do(self.run_sell)
+
+    def main(self) -> None:
+        schedule.every().day.at(MARKET_OPEN_TIME).do(self.setup_daily_tasks)
+        schedule.every().day.at(MARKET_CLOSE_TIME).do(self.run_buy)
 
         while True:
             schedule.run_pending()
